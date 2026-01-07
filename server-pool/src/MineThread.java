@@ -7,6 +7,10 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 public class MineThread extends Thread implements PropertyChangeListener {
+/*Al igual que La clase EchoThread es fundamentalmente un hilo de servidor responsable de manejar la conexión individual
+de un cliente minero, procesar sus comandos (connect, ack, sol) y notificarle los nuevos mensajes del chat.
+Combina la funcionalidad de redes (Sockets) con el patrón de observador (PropertyChangeListener).
+*/
 
     private Socket client;
     private Miners miners;
@@ -28,13 +32,24 @@ public class MineThread extends Thread implements PropertyChangeListener {
         // Asi nos suscribimos a los eventos de Miners (cuando se genere un bloque)
         miners.addPropertyChangeListener(this);
     }
+    /*
+    Constructor MineThread:
+        1. Recibe el Socket (la conexión específica del cliente) ,una referencia al objeto Miners global y el id del minero.
+        2. Llama a miners.addPropertyChangeListener(this): Esto registra el MineThread como un escuchador del objeto Miners.
+           A partir de este momento, cada vez que el Miners cambie el método propertyChange de este hilo será invocado.
+     */
 
     @Override
     public void run() {
         try {
+            //El metodo run es el procesamiento de la conexion.
+            //Configura los flujos de entrada (in, para leer lo que envía el cliente) y salida
+            // (out, para enviarle datos al cliente). El true en PrintWriter habilita el auto-flush,
+            // asegurando que los mensajes se envíen inmediatamente.
             in = new BufferedReader(new InputStreamReader(client.getInputStream()));
             out = new PrintWriter(client.getOutputStream(), true);
 
+            //las dos condiciones deben de ser ciertas, que no haya un logout y que no se corte la conexion
             String msg;
             while (running && (msg = in.readLine()) != null) {
                 processMessage(msg);
@@ -42,14 +57,19 @@ public class MineThread extends Thread implements PropertyChangeListener {
         } catch (IOException e) {
             System.err.println("Error en MineThread " + minerId + ": " + e.getMessage());
         } finally {
-            // Limpieza al desconectar
+            // Limpieza al desconectar, SIEMPRE se ejecuta, es una red de seguridad, no importa
+            //que termine bien o mal haY QUE HACER LO MISMO EN LOS DOS CASOS.
+            //Borra al ususario de la lista lógica
             miners.removeMiner(this);
+            //Se quita de notificaciones, así se evita en caso de error a ususarios que no existan
             miners.removePropertyChangeListener(this);
+            //cierra la conexion fisica, asi se evita que el servidor se quede sin puertos disponibles
             try { client.close(); } catch (IOException e) {}
         }
     }
-
+    //Esto viene de cada cliente/minero individual
     private void processMessage(String msg) {
+        //Este método analiza el mensaje que llega del cliente y realiza una acción basada en el prefijo:
         // PROTOCOLO
         // 1. Cliente se conecta
         if (msg.startsWith("connect")) {
@@ -57,35 +77,41 @@ public class MineThread extends Thread implements PropertyChangeListener {
             int total = miners.getMinerCount();
             out.println("ack " + total + " total clients");
 
-            // OJO: Para probar, fuerzo el inicio de una ronda de minado al conectarse el 2º cliente
+            // OJO: Para probar, fuerzo el inicio de una ronda de minado al conectarse el 1, 2º cliente
             // Esto es para ver que funciona
             if (total >= 1) {
-                System.out.println("[THREAD] Iniciando ronda de minado...");
+                System.out.println("[SERVER] Iniciando ronda de minado...");
                 miners.startNewMiningRound();
             }
         }
 
-        // 2. Cliente confirma recepción de trabajo
+        // 2. Cliente confirma recepción de trabajo, QUE EL SERVIDOR HA PEDIDO BUSCAR UNA SOLUCION
         else if (msg.startsWith("ack")) {
-            System.out.println("[THREAD " + minerId + "] Cliente listo para trabajar.");
+            System.out.println("[MINER " + minerId + "] ack Minero comienza a trabajar.");
         }
 
         // 3. Cliente envía solución
         else if (msg.startsWith("sol")) {
             // Msg ejemplo: "sol 3654"
             String solution = msg.split(" ")[1];
+            //Se muestra la solucion y avisamos a todos para que paren ("end")
             miners.notifySolutionFound(minerId, solution);
         }
     }
 
     //Este método se dispara cuando Miners hace firePropertyChange.
-    //     * Aquí es donde se envia EL PAQUETE AL CLIENTE.
+    //     * Aquí es donde se envia EL PAQUETE AL CLIENTE., el sistema envia a TODOS
+    //Miners (el gestor) actúa como una radio emisora.
+    //MineThread es una radio receptora
+    //El evento: evt es la señal que llega.
+    //eventName: Es el "título" de la noticia. Sirve para diferenciar si el server está mandando trabajo (NEW_REQUEST)
+    // o mandando parar (END_MINING).
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
         String eventName = evt.getPropertyName();
 
         if ("NEW_REQUEST".equals(eventName)) {
-            // El servidor ha generado un paquete nuevo.
+            //Recupera el paqute de datos, en este caso las transacciones
             String payload = (String) evt.getNewValue();
 
             // rango para cada cliente específico.
@@ -93,17 +119,19 @@ public class MineThread extends Thread implements PropertyChangeListener {
             int startRange = (minerId - 1) * RANGE_SIZE;
             int endRange = startRange + RANGE_SIZE;
 
-            // mensaje final
+            // mensaje final, empaqueta el mensaje y lo envia al cliente
             // new_request 0-100 mv|10|a1|b2;...
             String messageToSend = "new_request " + startRange + "-" + endRange + " " + payload;
 
             out.println(messageToSend);
-            System.out.println("[THREAD " + minerId + "] Enviado: " + messageToSend);
+            System.out.println("[MINER " + minerId + "] Enviado: " + messageToSend);
         }
 
         else if ("END_MINING".equals(eventName)) {
+            // Recupero el string que enviamos desde Miners
+            String infoVictoria = (String) evt.getNewValue();
             // Alguien encontró la solución, mandamos parar.
-            out.println("end");
+            out.println("end " + infoVictoria);
         }
     }
 }

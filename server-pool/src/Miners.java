@@ -1,6 +1,7 @@
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
@@ -8,12 +9,15 @@ import java.util.stream.Collectors;
 public class Miners {
 
     // Lista de hilos (mineros) conectados para poder gestionarlos
-    private final List<MineThread> connectedMiners = new ArrayList<>();
+    //Mejora: collections.syncro...envuelve el Arraylist para que la lista sea segura para sea segura para accesos concurrentes
+    private final List<MineThread> connectedMiners = Collections.synchronizedList(new ArrayList<>());
     // Soporte para notificaciones (Observer Pattern)
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
     // Generador de aleatorios para las transacciones
     private final RandomGenerator random = RandomGenerator.getDefault();
-    // RECORD para la estructura de datos (Java 21)
+    // RECORD para la estructura de datos
+    //Me es mas lógico pensar asi "De quién viene (Origen) -> A quién va (Destino) -> Cuánto (Cantidad)"
+    //Pero el formato del servidor exige cantidad primero con toString traducuzco al formato servidor
     public record Transaccion(String cuentaOrigen, String cuentaDestino, int cantidad) {
         @Override
         public String toString() {
@@ -23,6 +27,8 @@ public class Miners {
     }
 
     // --- Gestión de Mineros ---
+
+    //Con synchronized gestiono la concurrencia de los hilos mineros, los bloquea, hace la funcion y sale y lo desbloquea
 
     public synchronized void addMiner(MineThread miner) {
         connectedMiners.add(miner);
@@ -37,6 +43,10 @@ public class Miners {
     }
 
     // --- Lógica del Pool y Notificaciones ---
+    /*
+        Permiten a cualquier otra clase que implemente la interfaz PropertyChangeListener registrarse (o darse de baja)
+        para recibir las notificaciones que dispara el objeto Miners a través de pcs.
+    */
 
     public void addPropertyChangeListener(PropertyChangeListener listener) {
         this.pcs.addPropertyChangeListener(listener);
@@ -53,19 +63,19 @@ public class Miners {
         // Genero las transacciones aleatorias
         String payload = generarPaqueteDatos(5); // Simulamos 5 transacciones
 
-        System.out.println("[MINERS] Generando nuevo bloque: " + payload);
+        System.out.println("[SERVER] Generando nuevo bloque: " + payload);
 
         // Notificamos a todos los listeners (los MineThread)
         // El nombre de la propiedad es "NEW_REQUEST", el valor antiguo null, el nuevo es el PAYLOAD
         pcs.firePropertyChange("NEW_REQUEST", null, payload);
     }
 
-    //Cuando un minero encuentra la solución
+    //Cuando un minero encuentra la solución, tambien tiene que avisar a todos para que paren
     public void notifySolutionFound(int minerId, String solution) {
         System.out.println("[MINERS] ¡Solución encontrada por Minero " + minerId + "! Sol: " + solution);
-
+        String datosVictoria = "El minero " + minerId + " ha encontrado la solucion: " + solution;
         // Avisamos a todos para que paren ("end")
-        pcs.firePropertyChange("END_MINING", null, "Winner: " + minerId);
+        pcs.firePropertyChange("END_MINING", null, datosVictoria);
     }
 
     // --- Generación de Datos
@@ -75,13 +85,29 @@ public class Miners {
         for (int i = 0; i < numeroTransacciones; i++) {
             String origen = "user" + random.nextInt(1, 100);
             String destino = "user" + random.nextInt(1, 100);
-            while (origen.equals(destino)) destino = "user" + random.nextInt(1, 100);
+            while (origen.equals(destino)) {
+                // Si son iguales, genera un nuevo destino
+                destino = "user" + random.nextInt(1, 100);
+            }
             int cantidad = random.nextInt(1, 1001);
+            //Creo el objeto y lo guardo en la lista
             transacciones.add(new Transaccion(origen, destino, cantidad));
         }
         // Unimos con ";" y añadimos el ";" final
-        return transacciones.stream()
-                .map(Transaccion::toString)
-                .collect(Collectors.joining(";")) + ";";
+        // Esto convierte la lista de objetos en un String largo: "mv|103|user12|user23;mv|248|user33|user4;"
+        //Creo un constructor de cadenas
+        //StringBuilder del paquet java.langstreambuilder  es como una caja abierta donde vas metiendo cosas eficientemente y solo se cierras al final.
+        //Mejor que utilizar String, ya que son inmutables y no se puede cambiar y java tendria que copiar texto viejo
+        //añadir texto nuevo, crear objeto nuevo en memoria y borrar el viejo
+        StringBuilder sb = new StringBuilder();
+        //Cojo el array y recorro la lista de transacciones una por una
+        for (Transaccion t : transacciones) {
+            //Añado la transacción, append añade (Appends the specified string to this character sequence)
+            sb.append(t.toString());
+            //Añadimos el punto y coma después de cada una
+            sb.append(";");
+        }
+        //Converto lo que he acumulado a un String final
+        return sb.toString();
     }
 }
