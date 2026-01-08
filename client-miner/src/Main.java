@@ -5,18 +5,30 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Main {
+// Añdo mecanismo de concurrencia en el cliente para la busqueda de soluciones
+//Para ello voy a paralelizar el trabajo en los nucleos que tenga la cpu del cliente
+//asi cada cliente puede buscar en varios sitios a la vez dentro de su rango, para ello tengo:
+//1.Detectar cuántos núcleos tiene la CPU.
+//2.Dividir el rango que nos da el servidor (ej: 0-100.000) en trocitos iguales para cada núcleo.
+//3.Lanzar varios hilos a la vez para que busquen en paralelo.
 
     //Estas variables sean accesibles desde los métodos auxiliares
     private static PrintWriter out;
-    private static Thread minerThread;
+    //En lugar de un solo hilo (minerThread), uso una lista de hilos ---
+    // private static Thread minerThread;
+    private static List<Thread> minerThreads = new ArrayList<>();
     //volatile asegura que los cambios se vean inmediatamente entre hilos
     private static volatile boolean iWon = false;
 
     public static void main(String[] args) {
-        System.out.println("--- CLIENTE MINERO INICIADO ---");
-
+        System.out.println("--- CLIENTE MINERO MULTIHILO INICIADO ---");
+        //Envio informacion de cuántos núcleos vamos a usar
+        int cores = Runtime.getRuntime().availableProcessors();
+        System.out.println(">> Detectados " + cores + " núcleos para minar.");
         try {
             //CONEXIÓN
             Socket client = new Socket();
@@ -80,43 +92,84 @@ public class Main {
 
         // partes[2] es el rango "0-100"
         String[] ranges = parts[2].split("-");
-        int min = Integer.parseInt(ranges[0]);
-        int max = Integer.parseInt(ranges[1]);
+        int minGlobal = Integer.parseInt(ranges[0]);
+        int maxGlobal = Integer.parseInt(ranges[1]);
 
         // partes[3] son los datos "mv|..."
         String data = parts[3];
 
-        System.out.println(">> ¡A MINAR! Dificultad: " + dificulty + " ceros. Rango: " + min + " a " + max);
+        System.out.println(">> ¡A MINAR! Dificultad: " + dificulty + " ceros. Rango: " + minGlobal + " a " + maxGlobal);
 
         // Por si acaso había uno viejo corriendo
         stopMining();
-        // Lanzo un hilo aparte (Para no bloquear la escucha del servidor)
-        minerThread = new Thread(() -> {
-            try {
-                // Llamada a la clase HashCalculator
-                int solution = HashCalculator.calculateHash(data, min, max, dificulty);
-                boolean hasSolution = (solution != -1);
-                boolean isInterrupted = Thread.currentThread().isInterrupted();
-                //Si tengo la solucion y no me han parado...
-                if (hasSolution && !isInterrupted) {
-                    iWon = true;
-                    System.out.println(">> ¡ENCONTRADO! Enviando solución: " + solution);
-                    out.println("sol " + solution);
-                } else {
-                    System.out.println(">> Rango terminado sin éxito (o interrumpido).");
-                }
 
-            } catch (NoSuchAlgorithmException e) {
-                e.printStackTrace();
+        // Calcular división del trabajo
+        int numThreads = Runtime.getRuntime().availableProcessors();
+        int totalItems = maxGlobal - minGlobal;
+        // Tamaño del trozo para cada hilo
+        int chunkSize = totalItems / numThreads;
+        // Aviso informativo de la paralelizacion efectuada
+        System.out.println(">> Lanzando " + numThreads + " hilos (cada uno procesará ~" + chunkSize + " hashes).");
+        // 3. Crear y lanzar los hilos
+        for (int i = 0; i < numThreads; i++) {
+            // Calcular sub-rango para el hilo 'i'
+            int startRange = minGlobal + (i * chunkSize);
+
+            // El último hilo se lleva "lo que sobre" hasta el final para no perder decimales
+            int endRange;
+
+            // Compruebo si este es el ÚLTIMO hilo de la lista
+            if (i == numThreads - 1) {
+                // Si soy el último, me quedo con hasta el final real (max)
+                // Esto recoge los "restos" de la división inexacta
+                endRange = maxGlobal;
+            } else {
+                // Si NO soy el último, cojo solo mi trozo normal
+                // (start + tamaño) - 1 porque el rango es inclusivo
+                endRange = startRange + chunkSize - 1;
             }
-        });
 
-        minerThread.start();
+            // Crear el hilo
+            Thread t = new Thread(() -> {
+                try {
+                    // Llamada a HashCalculator
+                    int solution = HashCalculator.calculateHash(data, startRange, endRange, dificulty);
+
+                    // Si encuentra solución y nadie me ha manadado parar mientras yo estaba calculando  y nadie ha ganado todavía...
+                    if (solution != -1 && !Thread.currentThread().isInterrupted() && !iWon) {
+                        // Doble check sincronizado para evitar que dos hilos del mismo cliente envíen a la vez
+                        synchronized (Main.class) {
+                            if (!iWon) {
+                                iWon = true;
+                                //Obtengo el nombre del hilo que ha ganado (ej: "Hilo-3") ---
+                                String threadName = Thread.currentThread().getName();
+                                //Lo muestro en el mensaje ---
+                                System.out.println(">> ¡ENCONTRADO por " + threadName + "! Sol: " + solution);
+                                out.println("sol " + solution);
+                                // Parar a mis propios hermanos hilos
+                                stopMining();
+                            }
+                        }
+                    }
+
+                } catch (NoSuchAlgorithmException e) {
+                    e.printStackTrace();
+                }
+            });
+
+            // Añadir a la lista y arrancar
+            minerThreads.add(t);
+            t.start();
+        }
     }
 
     private static void stopMining() {
-        if (minerThread != null && minerThread.isAlive()) {
-            minerThread.interrupt(); // Esto hace saltar el 'if' dentro de HashCalculator
+        // Interrumpir TODOS los hilos de la lista
+        for (Thread t : minerThreads) {
+            if (t != null && t.isAlive()) {
+                t.interrupt();
+            }
         }
+        minerThreads.clear();
     }
 }
