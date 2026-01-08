@@ -11,7 +11,8 @@ public class Main {
     //Estas variables sean accesibles desde los métodos auxiliares
     private static PrintWriter out;
     private static Thread minerThread;
-    private static boolean iWon = false;
+    //volatile asegura que los cambios se vean inmediatamente entre hilos
+    private static volatile boolean iWon = false;
 
     public static void main(String[] args) {
         System.out.println("--- CLIENTE MINERO INICIADO ---");
@@ -69,19 +70,23 @@ public class Main {
 
     // Prepara los datos y lanza el hilo minero
     private static void handleNewWork(String msg) {
-        // msg viene así: "new_request 0-100 mv|datos..."
+        // --- NUEVO FORMATO DE PARSEO ---
+        // msg viene ahora así: "new_request 3 0-100 mv|datos..."
         // Partimos el mensaje por espacios
         String[] parts = msg.split(" ");
 
-        // partes[1] es el rango "0-100"
-        String[] ranges = parts[1].split("-");
+        // parts[1] es ahora la dificultad
+        int dificulty = Integer.parseInt(parts[1]);
+
+        // partes[2] es el rango "0-100"
+        String[] ranges = parts[2].split("-");
         int min = Integer.parseInt(ranges[0]);
         int max = Integer.parseInt(ranges[1]);
 
-        // partes[2] son los datos "mv|..."
-        String data = parts[2];
+        // partes[3] son los datos "mv|..."
+        String data = parts[3];
 
-        System.out.println(">> ¡A MINAR! Rango asignado: " + min + " a " + max);
+        System.out.println(">> ¡A MINAR! Dificultad: " + dificulty + " ceros. Rango: " + min + " a " + max);
 
         // Por si acaso había uno viejo corriendo
         stopMining();
@@ -89,7 +94,7 @@ public class Main {
         minerThread = new Thread(() -> {
             try {
                 // Llamada a la clase HashCalculator
-                int solution = HashCalculator.calculateHash(data, min, max);
+                int solution = HashCalculator.calculateHash(data, min, max, dificulty);
                 boolean hasSolution = (solution != -1);
                 boolean isInterrupted = Thread.currentThread().isInterrupted();
                 //Si tengo la solucion y no me han parado...

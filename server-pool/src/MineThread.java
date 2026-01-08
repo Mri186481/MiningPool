@@ -21,8 +21,8 @@ Combina la funcionalidad de redes (Sockets) con el patrón de observador (Proper
     private PrintWriter out;
     private boolean running = true;
 
-    // Constante para el tamaño del rango de búsqueda
-    private static final int RANGE_SIZE = 1000;
+    // Constante para el tamaño del rango de búsqueda, ahora mejor dinamica
+    //private static final int RANGE_SIZE = 1000;
 
     public MineThread(Socket client, Miners miners, int minerId) {
         this.client = client;
@@ -114,14 +114,29 @@ Combina la funcionalidad de redes (Sockets) con el patrón de observador (Proper
             //Recupera el paqute de datos, en este caso las transacciones
             String payload = (String) evt.getNewValue();
 
+            //NUEVO FORMATO: new_request <dificultad> <rango> <datos> new_request 0000 0-100 mv|10|a1|b2;...
+            // Con esto se recupera la dificultad actual del objeto Miners ---
+            int diff = miners.getDifficulty();
+
             // rango para cada cliente específico.
             // Ejemplo: Minero 1 -> 0-1000, Minero 2 -> 1001-2000
-            int startRange = (minerId - 1) * RANGE_SIZE;
-            int endRange = startRange + RANGE_SIZE;
+            // En funcion de la dificultad se calcula el tamaño del rango
+            // Si es fácil (2 ceros), rango pequeño (1000).
+            // Si es difícil (4 ceros), rango enorme (100.000) para asegurar que haya solución posible.
+            int currentRangeSize;
+            switch (diff) {
+                case 2: currentRangeSize = 1000; break;     // Probabilidad 1/256
+                case 3: currentRangeSize = 10000; break;    // Probabilidad 1/4096
+                case 4: currentRangeSize = 100000; break;   // Probabilidad 1/65536
+                default: currentRangeSize = 1000; break;
+            }
+            int startRange = (minerId - 1) * currentRangeSize;
+            int endRange = startRange + currentRangeSize;
 
             // mensaje final, empaqueta el mensaje y lo envia al cliente
-            // new_request 0-100 mv|10|a1|b2;...
-            String messageToSend = "new_request " + startRange + "-" + endRange + " " + payload;
+            // --- NUEVO FORMATO: new_request <dificultad> <rango> <datos>
+            String messageToSend = "new_request " + diff + " " + startRange + "-" + endRange + " " + payload;
+            //ANtes no habia dificlcutad ===> String messageToSend = "new_request " + startRange + "-" + endRange + " " + payload;
 
             out.println(messageToSend);
             System.out.println("[MINER " + minerId + "] Enviado: " + messageToSend);

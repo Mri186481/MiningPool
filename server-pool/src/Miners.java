@@ -7,7 +7,8 @@ import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.random.RandomGenerator;
-import java.util.stream.Collectors;
+import java.util.concurrent.ThreadLocalRandom;
+
 //Miners Genera las transacciones y gestiona el estado del minado
 public class Miners {
 
@@ -21,6 +22,14 @@ public class Miners {
     // RECORD para la estructura de datos
     //Me es mas lógico pensar asi "De quién viene (Origen) -> A quién va (Destino) -> Cuánto (Cantidad)"
     //Pero el formato del servidor exige cantidad primero con toString traducuzco al formato servidor
+
+    //Variable para guardar la dificultad de la ronda actual (por defecto 2) ---
+    private int currentDifficulty = 2;
+
+    //Getter para que MineThread sepa qué dificultad enviar al cliente ---
+    public int getDifficulty() {
+        return currentDifficulty;
+    }
     public record Transaccion(String cuentaOrigen, String cuentaDestino, int cantidad) {
         @Override
         public String toString() {
@@ -66,6 +75,10 @@ public class Miners {
     //     * Genera las transacciones y avisa a TODOS los hilos (MineThread)
     //     * para que envíen el "new_request" a sus clientes
     public void startNewMiningRound() {
+        //Establecer dificultad aleatoria para esta ronda (entre 2 y 4 ceros) ---
+        // nextInt(2, 5) devuelve 2, 3 o 4 (nunca llega al 5)
+        this.currentDifficulty = ThreadLocalRandom.current().nextInt(2, 5);
+        System.out.println("[SERVER] Dificultad establecida para esta ronda: " + this.currentDifficulty + " ceros.");
         // Genero las transacciones aleatorias
         this.currentData = generarPaqueteDatos(5); // Simulamos 5 transacciones
 
@@ -120,8 +133,12 @@ public class Miners {
 
         String result = HexFormat.of().formatHex(digest.digest());
 
+        // Validación dinámica basada en la dificultad actual ---
+        // Se genera el prefijo (ej: "00". "000" o "0000") según currentDifficulty
+        String target = "0".repeat(this.currentDifficulty);
+
         // Se comprueba si empieza por 00
-        if (result.startsWith("00")) {
+        if (result.startsWith(target)) {
             return true;  // La validación es correcta
         } else {
             return false; // La validación ha fallado

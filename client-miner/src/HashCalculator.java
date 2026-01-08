@@ -4,9 +4,12 @@ import java.util.HexFormat;
 
 public class HashCalculator {
 
-    public static int calculateHash(String data, int min, int max) throws NoSuchAlgorithmException {
+    //Ahora se acepta 'dificultad' como parámetro ---
+    public static int calculateHash(String data, int min, int max, int dificulty) throws NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("md5");
 
+        //Se Genera el String objetivo (ej: "00" o "000") dinámicamente ---
+        String target = "0".repeat(dificulty);
         for (int i = min; i <= max; i++) {
             //Si el hilo principal interrumpe (porque otro ganó), se para.
             if (Thread.currentThread().isInterrupted()) {
@@ -20,8 +23,8 @@ public class HashCalculator {
             digest.update(input.getBytes());
             String result = HexFormat.of().formatHex(digest.digest());
 
-            // Hash que empiece por dos ceros
-            if (result.startsWith("00")) {
+            // Hash: se usa 'target' en vez de "00"
+            if (result.startsWith(target)) {
                 // ¡Encontrado!
                 return i;
             }
