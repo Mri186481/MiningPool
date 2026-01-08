@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<VBox alignment="CENTER" spacing="10.0" style="-fx-background-color: #2b2b2b;"
+      xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="ServerController">
+
+    <padding>
+        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
+    </padding>
+
+    <children>
+        <Label text="SERVIDOR DE MINERÍA - MONITOR" textFill="WHITE">
+            <font>
+                <Font name="Arial Bold" size="20.0" />
+            </font>
+        </Label>
+
+        <TextArea fx:id="logArea" editable="false" prefHeight="400.0" prefWidth="600.0" wrapText="true"
+                  style="-fx-control-inner-background: #000000; -fx-text-fill: #00ff00; -fx-font-family: 'Consolas';" />
+    </children>
+</VBox>
