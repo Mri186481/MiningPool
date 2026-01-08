@@ -1,7 +1,10 @@
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
@@ -25,6 +28,9 @@ public class Miners {
             return "mv|%d|%s|%s".formatted(cantidad, cuentaOrigen, cuentaDestino);
         }
     }
+
+    //Validacion del HASh, se guarda el paquete de datos actual para poder validar luego
+    private String currentData;
 
     // --- Gestión de Mineros ---
 
@@ -61,21 +67,65 @@ public class Miners {
     //     * para que envíen el "new_request" a sus clientes
     public void startNewMiningRound() {
         // Genero las transacciones aleatorias
-        String payload = generarPaqueteDatos(5); // Simulamos 5 transacciones
+        this.currentData = generarPaqueteDatos(5); // Simulamos 5 transacciones
 
-        System.out.println("[SERVER] Generando nuevo bloque: " + payload);
+        System.out.println("[SERVER] Generando nuevo bloque: " + this.currentData);
 
         // Notificamos a todos los listeners (los MineThread)
         // El nombre de la propiedad es "NEW_REQUEST", el valor antiguo null, el nuevo es el PAYLOAD
-        pcs.firePropertyChange("NEW_REQUEST", null, payload);
+        pcs.firePropertyChange("NEW_REQUEST", null, this.currentData);
     }
 
     //Cuando un minero encuentra la solución, tambien tiene que avisar a todos para que paren
-    public void notifySolutionFound(int minerId, String solution) {
-        System.out.println("[MINERS] ¡Solución encontrada por Minero " + minerId + "! Sol: " + solution);
-        String datosVictoria = "El minero " + minerId + " ha encontrado la solucion: " + solution;
-        // Avisamos a todos para que paren ("end")
-        pcs.firePropertyChange("END_MINING", null, datosVictoria);
+    //y VALIDAR la solucion para ver si es correcta
+    public synchronized void notifySolutionFound(int minerId, String solutionString) {
+        try {
+            //Se intenta convertir, si envían "texto" en vez de número, saltará al catch.
+            int solution = Integer.parseInt(solutionString);
+            //Si la ronda acabó, se ignora y se sale, asi se evita problemas con la condicion de carrera
+            if (this.currentData == null) {
+                System.out.println("[SERVER] Solución recibida tarde (" + solutionString + "). La ronda ya ha terminado. Ignorando...");
+                return;
+            }
+            System.out.println("String a hashear (Servidor): " + String.format("%03d%s", solution, this.currentData));
+            // -------------
+            if (validate(this.currentData, solution)) {
+                System.out.println("[MINERS] ¡Solución encontrada por Minero " + minerId + "! Sol: " + solutionString);
+                String datosVictoria = "El minero " + minerId + " ha encontrado la solucion: " + solutionString;
+                // Avisamos a todos para que paren ("end")
+                pcs.firePropertyChange("END_MINING", null, datosVictoria);
+                this.currentData = null;
+            } else {
+                System.out.println("[MINERS] Solución INCORRECTA rechazada.");
+            }
+            } catch (NumberFormatException e) {
+                System.err.println("[ERROR] El minero " + minerId + " envió un formato de número inválido: " + solutionString);
+            } catch (NoSuchAlgorithmException e) {
+                System.err.println("[ERROR] Algoritmo de hash no disponible en el servidor.");
+            }
+    }
+
+    private boolean validate(String data, int solution) throws NoSuchAlgorithmException {
+        // Por seguridad
+        if (data == null) return false;
+
+
+        MessageDigest digest = MessageDigest.getInstance("md5");
+
+        //Se replica exactamente cómo lo hace el cliente: numero + datos, pero sin el for
+        //Exactamnete igual, rellenando con ceros a la izquierda 5--->005
+        String msg = String.format("%03d%s", solution, data);
+
+        digest.update(msg.getBytes());
+
+        String result = HexFormat.of().formatHex(digest.digest());
+
+        // Se comprueba si empieza por 00
+        if (result.startsWith("00")) {
+            return true;  // La validación es correcta
+        } else {
+            return false; // La validación ha fallado
+        }
     }
 
     // --- Generación de Datos
