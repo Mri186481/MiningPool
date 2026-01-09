@@ -75,14 +75,19 @@ Combina la funcionalidad de redes (Sockets) con el patrón de observador (Proper
         if (msg.startsWith("connect")) {
             // Server responde: ack <total_clients> total clients
             int total = miners.getMinerCount();
-            out.println("ack " + total + " total clients");
+            out.println("ack " + total + " total clientes");
 
             // OJO: Para probar, fuerzo el inicio de una ronda de minado al conectarse el 1, 2º cliente
             // Esto es para ver que funciona
-            if (total >= 1) {
+            //if (total >= 1) {
+            if (total == 1) {
+            // Solo si es el PRIMER cliente (total == 1), arrancamos la primera ronda.
+            // Las siguientes rondas las hará el temporizador de Miners cada 5 mins.
                 System.out.println("[SERVER] Iniciando ronda de minado...");
                 miners.startNewMiningRound();
             }
+            // Si entra el cliente nº 2, 3, etc., se unen a la ronda que ya esté en marcha
+            // o esperan a la siguiente del temporizador.
         }
 
         // 2. Cliente confirma recepción de trabajo, QUE EL SERVIDOR HA PEDIDO BUSCAR UNA SOLUCION

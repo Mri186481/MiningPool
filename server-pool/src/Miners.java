@@ -41,6 +41,32 @@ public class Miners {
     //Validacion del HASh, se guarda el paquete de datos actual para poder validar luego
     private String currentData;
 
+    // Constructor para iniciar el temporizador automático
+    // Al crear la instancia de Miners, arrancamos un hilo que funciona como reloj
+    public Miners() {
+        Thread temporizador = new Thread(() -> {
+            while (true) {
+                try {
+                    // Esperamos 5 minutos (300,000 milisegundos), para probar poner 30000(30sg)
+                    Thread.sleep(300000);
+                    // Solo mandamos trabajo si hay alguien conectado para hacerlo
+                    // Si la lista no está vacía, iniciamos ronda.
+                    if (!connectedMiners.isEmpty()) {
+                        System.out.println("[AUTO-TIMER] Pasaron 5 min. Iniciando nueva ronda automática...");
+                        startNewMiningRound();
+                    } else {
+                        System.out.println("[AUTO-TIMER] Pasaron 5 min, pero no hay mineros conectados. Esperando...");
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+        // Daemon = true significa que si se cierra el programa principal, este hilo muere con él
+        temporizador.setDaemon(true);
+        temporizador.start();
+    }
+
     // --- Gestión de Mineros ---
 
     //Con synchronized gestiono la concurrencia de los hilos mineros, los bloquea, hace la funcion y sale y lo desbloquea
