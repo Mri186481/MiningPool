@@ -37,17 +37,17 @@ public class Main {
             BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
             out = new PrintWriter(client.getOutputStream(), true);
 
-            // PROTOCOLO: Identificacion, mando connect
+            //PROTOCOLO: Identificacion, mando connect
             out.println("connect");
 
             //BUCLE DE ESCUCHA
-            // El cliente no se cierra, se queda esperando órdenes del servidor
+            //El cliente no se cierra, se queda esperando órdenes del servidor
             String serverMessage;
             while ((serverMessage = in.readLine()) != null) {
                 processMessage(serverMessage);
             }
 
-            // Si se sale del while es que el servidor se cerró
+            //Si se sale del while es que el servidor se cerró
             client.close();
 
         } catch (IOException e) {
@@ -63,9 +63,9 @@ public class Main {
         }
         else if (msg.startsWith("new_request")) {
             iWon = false;
-            //Se confirma que el servidor ha peddo buscar una solucion
+            //Se confirma que el servidor ha pedido buscar una solucion
             out.println("ack");
-            // El servidor manda trabajo: "new_request 0-100 mv|10|a|b;"
+            //El servidor manda trabajo: "new_request 2 0-1000 mv|101|user18|user25;"
             handleNewWork(msg);
         }
         else if (msg.startsWith("end")) {
@@ -80,73 +80,65 @@ public class Main {
         }
     }
 
-    // Prepara los datos y lanza el hilo minero
+    //Prepara los datos y lanza el hilo minero
     private static void handleNewWork(String msg) {
-        // --- NUEVO FORMATO DE PARSEO ---
-        // msg viene ahora así: "new_request 3 0-100 mv|datos..."
-        // Partimos el mensaje por espacios
+        //Parto el mensaje por espacios
         String[] parts = msg.split(" ");
-
-        // parts[1] es ahora la dificultad
+        //parts[1] es la dificultad
         int dificulty = Integer.parseInt(parts[1]);
-
-        // partes[2] es el rango "0-100"
+        //partes[2] es el rango "0-1000"
         String[] ranges = parts[2].split("-");
         int minGlobal = Integer.parseInt(ranges[0]);
         int maxGlobal = Integer.parseInt(ranges[1]);
-
-        // partes[3] son los datos "mv|..."
+        //partes[3] son los datos "mv|..."
         String data = parts[3];
-
         System.out.println(">> ¡A MINAR! Dificultad: " + dificulty + " ceros. Rango: " + minGlobal + " a " + maxGlobal);
 
-        // Por si acaso había uno viejo corriendo
+        //Por si acaso había uno viejo corriendo
         stopMining();
 
-        // Calcular división del trabajo
+        //Calcular división del trabajo
         int numThreads = Runtime.getRuntime().availableProcessors();
         int totalItems = maxGlobal - minGlobal;
-        // Tamaño del trozo para cada hilo
+        //Tamaño del trozo para cada hilo
         int chunkSize = totalItems / numThreads;
-        // Aviso informativo de la paralelizacion efectuada
+        //Aviso informativo de la paralelizacion efectuada
         System.out.println(">> Lanzando " + numThreads + " hilos (cada uno procesará ~" + chunkSize + " hashes).");
-        // 3. Crear y lanzar los hilos
+        //3. Crear y lanzar los hilos
         for (int i = 0; i < numThreads; i++) {
-            // Calcular sub-rango para el hilo 'i'
+            //Calcular sub-rango para el hilo 'i'
             int startRange = minGlobal + (i * chunkSize);
-
-            // El último hilo se lleva "lo que sobre" hasta el final para no perder decimales
+            //El último hilo se lleva "lo que sobre" hasta el final para no perder decimales
             int endRange;
-
-            // Compruebo si este es el ÚLTIMO hilo de la lista
+            //Compruebo si este es el ÚLTIMO hilo de la lista
             if (i == numThreads - 1) {
-                // Si soy el último, me quedo con hasta el final real (max)
-                // Esto recoge los "restos" de la división inexacta
+                //Si soy el último, me quedo con hasta el final real (max)
+                //Esto recoge los "restos" de la división inexacta
                 endRange = maxGlobal;
             } else {
-                // Si NO soy el último, cojo solo mi trozo normal
-                // (start + tamaño) - 1 porque el rango es inclusivo
+                //Si NO soy el último, cojo solo mi trozo normal
+                //(start + tamaño) - 1 porque el rango es inclusivo
                 endRange = startRange + chunkSize - 1;
             }
 
-            // Crear el hilo
+            //Crear el hilo
             Thread t = new Thread(() -> {
                 try {
-                    // Llamada a HashCalculator
+                    //Llamada a HashCalculator
                     int solution = HashCalculator.calculateHash(data, startRange, endRange, dificulty);
 
-                    // Si encuentra solución y nadie me ha manadado parar mientras yo estaba calculando  y nadie ha ganado todavía...
+                    //Si encuentra solución y nadie me ha manadado parar mientras yo estaba calculando  y nadie ha ganado todavía...
                     if (solution != -1 && !Thread.currentThread().isInterrupted() && !iWon) {
-                        // Doble check sincronizado para evitar que dos hilos del mismo cliente envíen a la vez
+                        //Doble check sincronizado para evitar que dos hilos del mismo cliente envíen a la vez
                         synchronized (Main.class) {
                             if (!iWon) {
                                 iWon = true;
-                                //Obtengo el nombre del hilo que ha ganado (ej: "Hilo-3") ---
+                                //Obtengo el nombre del hilo que ha ganado (ej: "Hilo-3")
                                 String threadName = Thread.currentThread().getName();
-                                //Lo muestro en el mensaje ---
+                                //Lo muestro en el mensaje
                                 System.out.println(">> ¡ENCONTRADO por " + threadName + "! Sol: " + solution);
                                 out.println("sol " + solution);
-                                // Parar a mis propios hermanos hilos
+                                //Parar a mis propios hermanos hilos
                                 stopMining();
                             }
                         }
@@ -157,14 +149,14 @@ public class Main {
                 }
             });
 
-            // Añadir a la lista y arrancar
+            //Añadir a la lista y arrancar
             minerThreads.add(t);
             t.start();
         }
     }
 
     private static void stopMining() {
-        // Interrumpir TODOS los hilos de la lista
+        //Interrumpir TODOS los hilos de la lista
         for (Thread t : minerThreads) {
             if (t != null && t.isAlive()) {
                 t.interrupt();

@@ -10,7 +10,6 @@ public class MineServer {
 
         // Instancio el gestor del Pool (lo que en clase es la sala de chat)
         Miners miners = new Miners();
-        // Para empezar, se genera al conectar clientes o manualmente
 
         while (true) {
             System.out.println("[SERVER] Esperando mineros...");
