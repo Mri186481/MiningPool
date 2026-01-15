@@ -38,7 +38,7 @@ El proyecto utiliza **JavaFX 21** (y no viene incluido por defecto en el JDK), e
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone <URL_DE_TU_REPO>
+    git clone https://github.com/Mri186481/MiningPool
     ```
 2.  **Descargar JavaFX SDK:**
     * Descarga el SDK de JavaFX 21 desde [GluonHQ](https://gluonhq.com/products/javafx/).
