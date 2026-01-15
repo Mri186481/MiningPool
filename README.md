@@ -18,16 +18,16 @@ El sistema simula la distribución de bloques de transacciones, cálculo de Hash
 El proyecto cumple con los requisitos avanzados de la práctica:
 
 ### Funcionalidades Obligatorias:
-● Generar un paquete de datos aleatorios: El servidor generará un “paquete” de datos, simulando X transacciones. Dichas transacciones tienen un formato similar a un movimiento de una cuenta origen a una destino de una cantidad dada.
-● Los clientes son capaces de conectarse y desconectarse del servidor: El servidor lleva una lista de las conexiones actuales.
-● El servidor gestiona de manera concurrente las conexiones de los clientes: Gestiona el envío y la recepción de la información de manera concurrente
-● Los clientes son capaces de aceptar las peticiones de minado y ejecutar la búsqueda del valor: Una vez encontrado, si lo han encontrado, son capazes de enviar el valor al servidor
-● El servidor valida la solución aportada: Una vez validada, finalizará el proceso en el resto de hilos
+* Generar un paquete de datos aleatorios: El servidor generará un “paquete” de datos, simulando X transacciones. Dichas transacciones tienen un formato similar a un movimiento de una cuenta origen a una destino de una cantidad dada.
+* Los clientes son capaces de conectarse y desconectarse del servidor: El servidor lleva una lista de las conexiones actuales.
+* El servidor gestiona de manera concurrente las conexiones de los clientes: Gestiona el envío y la recepción de la información de manera concurrente
+* Los clientes son capaces de aceptar las peticiones de minado y ejecutar la búsqueda del valor: Una vez encontrado, si lo han encontrado, son capazes de enviar el valor al servidor
+* El servidor valida la solución aportada: Una vez validada, finalizará el proceso en el resto de hilos
 
-### Funcionalidades Opcinales:
-● Implementa un mecanismo concurrente para la búsqueda de soluciones (2 puntos): Con los algoritmos y métodos vistos en clase, los clientes calculen el resultado de forma concurrente.
-● Diseño de UI para el servidor (2 puntos): Diseño de un UI para el servidor que muestra las conexiones actuales y, los paquetes que va a mandar, las soluciones encontradas…
-● Implementa una fase de negociación en la que el servidor establece la dificultar del minado (1 punto): El servidor establece el número de ceros a conseguir.
+### Funcionalidades Opcionales:
+* Implementa un mecanismo concurrente para la búsqueda de soluciones (2 puntos): Con los algoritmos y métodos vistos en clase, los clientes calculen el resultado de forma concurrente.
+* Diseño de UI para el servidor (2 puntos): Diseño de un UI para el servidor que muestra las conexiones actuales y, los paquetes que va a mandar, las soluciones encontradas…
+* Implementa una fase de negociación en la que el servidor establece la dificultar del minado (1 punto): El servidor establece el número de ceros a conseguir.
 
 
 ---
