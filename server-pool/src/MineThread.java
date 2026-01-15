@@ -12,7 +12,6 @@ Combina la funcionalidad de redes (Sockets) con el patrón de observador (Proper
 public class MineThread extends Thread implements PropertyChangeListener {
     private Socket client;
     private Miners miners;
-    // ID para calcular el rango (ej: minero 1 rango 0-100)
     private int minerId;
 
     private BufferedReader in;
@@ -24,7 +23,6 @@ public class MineThread extends Thread implements PropertyChangeListener {
         this.miners = miners;
         this.minerId = minerId;
 
-        // Asi nos suscribimos a los eventos de Miners (cuando se genere un bloque propertyChange de este hilo será invocado.)
         miners.addPropertyChangeListener(this);
     }
 
@@ -43,17 +41,13 @@ public class MineThread extends Thread implements PropertyChangeListener {
             System.err.println("Error en MineThread " + minerId + ": " + e.getMessage());
         } finally {
             // Limpieza al desconectar, SIEMPRE se ejecuta, no importa que termine bien o mal haY QUE HACER LO MISMO EN LOS DOS CASOS.
-            //Borra al ususario de la lista lógica
             miners.removeMiner(this);
-            //Se quita de notificaciones, así se evita en caso de error a ususarios que no existan
             miners.removePropertyChangeListener(this);
-            //cierra la conexion fisica, asi se evita que el servidor se quede sin puertos disponibles
             try { client.close(); } catch (IOException e) {}
         }
     }
-    //Esto viene de cada cliente/minero individual
+
     private void processMessage(String msg) {
-        //Este método analiza el mensaje que llega del cliente y realiza una acción basada en el prefijo:
         // PROTOCOLO
         // 1. Cliente se conecta
         if (msg.startsWith("connect")) {
@@ -71,7 +65,7 @@ public class MineThread extends Thread implements PropertyChangeListener {
             // o esperan a la siguiente del temporizador.
         }
 
-        // 2. Cliente confirma recepción de trabajo, QUE EL SERVIDOR HA PEDIDO BUSCAR UNA SOLUCION
+        // 2. Cliente confirma recepción de trabajo
         else if (msg.startsWith("ack")) {
             System.out.println("[MINER " + minerId + "] ack Minero comienza a trabajar.");
         }
@@ -89,11 +83,8 @@ public class MineThread extends Thread implements PropertyChangeListener {
         String eventName = evt.getPropertyName();
 
         if ("NEW_REQUEST".equals(eventName)) {
-            //Recupera el paqute de datos, en este caso las transacciones
             String payload = (String) evt.getNewValue();
-
             //NUEVO FORMATO: new_request <dificultad> <rango> <datos>; ejemplo: new_request 4 0-100000 0-100 mv|10|a1|b2;...
-            // Con esto se recupera la dificultad actual del objeto Miners ---
             int diff = miners.getDifficulty();
 
             // Rango para cada cliente específico.
@@ -118,9 +109,7 @@ public class MineThread extends Thread implements PropertyChangeListener {
         }
 
         else if ("END_MINING".equals(eventName)) {
-            // Recupero el string que enviamos desde Miners
             String infoVictoria = (String) evt.getNewValue();
-            // Alguien encontró la solución, mandamos parar.
             out.println("end " + infoVictoria);
         }
     }

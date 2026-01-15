@@ -19,7 +19,6 @@ public class ServerGUI extends Application {
             //ACTIVA LA REDIRECCIÓN
             //Se crea el "puente" pasándole el logArea, que nos lo da el controlador
             ConsoleOutput consoleOutput = new ConsoleOutput(controller.getLogArea());
-            // Le decimos a Java: "De ahora en adelante, System.out eres tú y tb se redirigen los errores"
             PrintStream ps = new PrintStream(consoleOutput, true);
             System.setOut(ps);
             System.setErr(ps);
@@ -36,7 +35,7 @@ public class ServerGUI extends Application {
                     e.printStackTrace();
                 }
             });
-            // Esto asegura que si cierras la ventana, el hilo muere
+
             serverThread.setDaemon(true);
             serverThread.start();
 
@@ -57,7 +56,7 @@ public class ServerGUI extends Application {
             System.err.println("¡Error fatal cargando el FXML!: " + e.getMessage());
         }
     }
-    //Metodo main que se llama desde Serverlauncher
+
     public static void main(String[] args) {
         launch(args);
     }

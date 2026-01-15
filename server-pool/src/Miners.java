@@ -12,22 +12,16 @@ import java.util.concurrent.ThreadLocalRandom;
 //Miners Genera las transacciones y gestiona el estado del minado
 public class Miners {
 
-    //Lista de hilos (mineros) conectados para poder gestionarlos
+
     private final List<MineThread> connectedMiners = Collections.synchronizedList(new ArrayList<>());
-    //Soporte para notificaciones (Observer Pattern)
     private final PropertyChangeSupport pcs = new PropertyChangeSupport(this);
-    //Generador de aleatorios para las transacciones
     private final RandomGenerator random = RandomGenerator.getDefault();
-    //Variable para guardar la dificultad de la ronda actual (por defecto 2) ---
     private int currentDifficulty = 2;
 
-    //Getter para que MineThread sepa qué dificultad enviar al cliente ---
     public int getDifficulty() {
         return currentDifficulty;
     }
     //RECORD para la estructura de datos
-    //Me es más lógico pensar asi "De quién viene (Origen) -> A quién va (Destino) -> Cuánto (Cantidad)"
-    //Pero el formato del servidor exige cantidad primero con toString traducuzco al formato servidor
     public record Transaccion(String cuentaOrigen, String cuentaDestino, int cantidad) {
         @Override
         public String toString() {
@@ -36,11 +30,9 @@ public class Miners {
         }
     }
 
-    //Para la Validacion del HASh, se guarda el paquete de datos actual para poder validar luego
     private String currentData;
 
     //Constructor para iniciar el temporizador automático
-    //Al crear la instancia de Miners, arrancamos un hilo que funciona como reloj
     public Miners() {
         Thread temporizador = new Thread(() -> {
             while (true) {
@@ -60,7 +52,7 @@ public class Miners {
                 }
             }
         });
-        //Daemon = true significa que si se cierra el programa principal, este hilo muere con él
+
         temporizador.setDaemon(true);
         temporizador.start();
     }
@@ -90,30 +82,25 @@ public class Miners {
     }
 
     //Creacion del Bloque
-    //Genera las transacciones y avisa a TODOS los hilos (MineThread) para que envíen el "new_request" a sus clientes
+
     public void startNewMiningRound() {
-        //Establecer dificultad aleatoria para esta ronda (entre 2 y 4 ceros) ---
-        //nextInt(2, 5) devuelve 2, 3 o 4 (nunca llega al 5)
         this.currentDifficulty = ThreadLocalRandom.current().nextInt(2, 5);
         System.out.println("[SERVER] Dificultad establecida para esta ronda: " + this.currentDifficulty + " ceros.");
-        //Genero las transacciones aleatorias, 5 transacciones.
         this.currentData = generarPaqueteDatos(5);
         System.out.println("[SERVER] Generando nuevo bloque: " + this.currentData);
-        //Notifico a todos los listeners (los MineThread)
         pcs.firePropertyChange("NEW_REQUEST", null, this.currentData);
     }
 
-    //Cuando un minero encuentra la solución, también tiene que avisar a todos para que paren
-    //y VALIDAR la solucion para ver si es correcta
+
     public synchronized void notifySolutionFound(int minerId, String solutionString) {
         try {
-            //Se intenta convertir, si envían "texto" en vez de número, saltará al catch.
             int solution = Integer.parseInt(solutionString);
-            //Si la ronda acabó, se ignora y se sale, asi se evita problemas con la condicion de carrera
+
             if (this.currentData == null) {
                 System.out.println("[SERVER] Solución recibida tarde (" + solutionString + "). La ronda ya ha terminado. Ignorando...");
                 return;
             }
+
             System.out.println("String a hashear (Servidor): " + String.format("%03d%s", solution, this.currentData));
             if (validate(this.currentData, solution)) {
                 System.out.println("[MINERS] ¡Solución encontrada por Minero " + minerId + "! Sol: " + solutionString);
@@ -132,18 +119,15 @@ public class Miners {
     }
 
     private boolean validate(String data, int solution) throws NoSuchAlgorithmException {
-        // Por seguridad
         if (data == null) return false;
         MessageDigest digest = MessageDigest.getInstance("md5");
-        //Se replica exactamente cómo lo hace el cliente: numero + datos, pero sin el for
-        //Exactamnete igual, rellenando con ceros a la izquierda 5--->005
+        //Se replica exactamente cómo lo hace el cliente
         String msg = String.format("%03d%s", solution, data);
         digest.update(msg.getBytes());
         String result = HexFormat.of().formatHex(digest.digest());
-        // Validación dinámica basada en la dificultad actual ---
-        // Se genera el prefijo (ej: "00". "000" o "0000") según currentDifficulty
+        //Validación dinámica basada en la dificultad actual
+        //Se genera el prefijo (ej: "00". "000" o "0000") según currentDifficulty
         String target = "0".repeat(this.currentDifficulty);
-        // Se comprueba si empieza por 00
         if (result.startsWith(target)) {
             return true;
         } else {
@@ -163,19 +147,16 @@ public class Miners {
                 destino = "user" + random.nextInt(1, 100);
             }
             int cantidad = random.nextInt(1, 1001);
-            //Creo el objeto y lo guardo en la lista
+
             transacciones.add(new Transaccion(origen, destino, cantidad));
         }
-        // Esto convierte la lista de objetos en un String largo: "mv|103|user12|user23;mv|248|user33|user4;"
-        //Creo un constructor de cadenas
-        //StringBuilder del paquet java.langstreambuilder
+
         StringBuilder sb = new StringBuilder();
-        //Cojo el array y recorro la lista de transacciones una por una
         for (Transaccion t : transacciones) {
             sb.append(t.toString());
             sb.append(";");
         }
-        //Converto lo que he acumulado a un String final
+        //Converto lo que he acumulado a un String final "mv|103|user12|user23;mv|248|user33|user4;..."
         return sb.toString();
     }
 }
